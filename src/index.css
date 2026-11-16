@@ -1,0 +1,147 @@
+@import "tailwindcss";
+
+@layer base {
+  html, body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overscroll-behavior-y: contain;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button, a, select {
+    touch-action: manipulation;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.animate-pulseGlow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+@keyframes plantBreeze {
+  0%, 100% {
+    transform: rotate(0deg) skewX(0deg);
+  }
+  25% {
+    transform: rotate(1.2deg) skewX(0.8deg);
+  }
+  75% {
+    transform: rotate(-1deg) skewX(-0.6deg);
+  }
+}
+
+.animate-plantBreeze {
+  animation: plantBreeze 5.5s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+@media print {
+  @page {
+    margin: 12mm 15mm;
+    size: A4 portrait;
+  }
+
+  body {
+    background-color: white !important;
+    color: black !important;
+    font-size: 10pt !important;
+  }
+
+  header, footer, .no-print, button, input {
+    display: none !important;
+  }
+
+  .print\:block {
+    display: block !important;
+  }
+
+  .print\:hidden {
+    display: none !important;
+  }
+
+  .print\:border-none {
+    border: none !important;
+  }
+
+  .print\:shadow-none {
+    box-shadow: none !important;
+  }
+
+  table {
+    page-break-inside: auto;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+
+  /* When printing from Voucher Modal, isolate and print ONLY the voucher */
+  body.voucher-modal-active #main-app-container,
+  body.voucher-modal-active nav,
+  body.voucher-modal-active .journal-report-main,
+  body.voucher-modal-active main {
+    display: none !important;
+  }
+
+  body.voucher-modal-active .voucher-modal-overlay {
+    position: static !important;
+    background: white !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  body.voucher-modal-active .voucher-modal-window {
+    max-width: 100% !important;
+    max-height: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  body.voucher-modal-active .voucher-sheet {
+    border: 2px solid #0f172a !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 16px !important;
+  }
+}
+

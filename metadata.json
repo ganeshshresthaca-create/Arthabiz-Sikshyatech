@@ -1,0 +1,8 @@
+{
+  "name": "Arthabiz | Sikshyatech Hub",
+  "description": "Comprehensive 15-day accounting practice platform with 50 daily transaction MCQs, passcode authentication, journal entries solutions, and day book reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

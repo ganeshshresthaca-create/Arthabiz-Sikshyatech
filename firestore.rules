@@ -1,0 +1,277 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // Primitive Security Helpers
+    // =========================================================================
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSignedInNonAnon() {
+      return isSignedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdminEmail() {
+      return isVerifiedUser() && request.auth.token.email == 'ganeshshrestha.ca@gmail.com';
+    }
+
+    function isAdmin() {
+      return isAdminEmail() || (
+        isVerifiedUser() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedInNonAnon() && request.auth.uid == userId;
+    }
+
+    // =========================================================================
+    // Entity Validation Blueprints (Anti-Update-Gap)
+    // =========================================================================
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'name', 'role', 'institution', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'name', 'role', 'institution', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == userId
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 100
+        && data.role is string && data.role in ['student', 'trainer']
+        && data.institution is string && data.institution.size() >= 1 && data.institution.size() <= 120
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivateInfo(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == userId
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDayId(dayId) {
+      return isValidId(dayId) && dayId.matches('^day_([1-9]|1[0-5])$');
+    }
+
+    function isValidDayProgress(data, userId) {
+      return data.keys().hasAll([
+          'userId', 'dayNumber', 'unlocked', 'answers', 'markedForReview',
+          'submitted', 'timeSpentSeconds', 'score', 'totalQuestions', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'userId', 'dayNumber', 'unlocked', 'unlockedAt', 'answers', 'markedForReview',
+          'submitted', 'submittedAt', 'timeSpentSeconds', 'score', 'totalQuestions', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.userId)
+        && data.userId == userId
+        && data.dayNumber is int && data.dayNumber >= 1 && data.dayNumber <= 15
+        && data.unlocked is bool
+        && (!('unlockedAt' in data) || (data.unlockedAt is string && data.unlockedAt.size() <= 64))
+        && data.answers is map && data.answers.size() <= 50
+        && data.markedForReview is list && data.markedForReview.size() <= 50
+        && (data.markedForReview.size() == 0 || data.markedForReview[0] is int)
+        && data.submitted is bool
+        && (!('submittedAt' in data) || (data.submittedAt is string && data.submittedAt.size() <= 64))
+        && data.timeSpentSeconds is int && data.timeSpentSeconds >= 0 && data.timeSpentSeconds <= 86400
+        && data.score is int && data.score >= 0 && data.score <= 50
+        && data.totalQuestions is int && data.totalQuestions >= 1 && data.totalQuestions <= 100
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidScratchpad(data, userId) {
+      return data.keys().hasAll(['userId', 'content', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['userId', 'content', 'createdAt', 'updatedAt'])
+        && isValidId(data.userId)
+        && data.userId == userId
+        && data.content is string && data.content.size() <= 10000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAdminRole(data, userId) {
+      return data.keys().hasAll(['uid', 'grantedBy', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'grantedBy', 'createdAt'])
+        && isValidId(data.uid)
+        && data.uid == userId
+        && isValidId(data.grantedBy)
+        && data.createdAt is timestamp;
+    }
+
+    // =========================================================================
+    // Collection Rules
+    // =========================================================================
+
+    // /admins/{userId} — Only verified admins can read/manage admin roster
+    match /admins/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdminEmail();
+      allow create: if isAdmin()
+        && isValidId(userId)
+        && isValidAdminRole(incoming(), userId)
+        && incoming().grantedBy == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isAdmin() && isValidId(userId) && userId != request.auth.uid;
+    }
+
+    // /users/{userId} — Owner or Admin only
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdminEmail();
+
+      allow create: if isValidId(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          (isOwner(userId) && incoming().role == 'student') ||
+          isAdmin()
+        );
+
+      allow update: if isValidId(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (
+            isOwner(userId)
+            && incoming().role == existing().role
+            && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'institution', 'updatedAt'])
+          ) ||
+          (
+            isAdmin()
+            && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'role', 'institution', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isAdmin() && isValidId(userId);
+
+      // /users/{userId}/private/{docId} — Strictly isolated PII (email)
+      match /private/{docId} {
+        allow get: if isValidId(userId) && docId == 'info' && (isOwner(userId) || isAdmin());
+        allow list: if false;
+        allow create: if isValidId(userId)
+          && docId == 'info'
+          && isValidUserPrivateInfo(incoming(), userId)
+          && incoming().updatedAt == request.time
+          && (isOwner(userId) || isAdmin())
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow update: if isValidId(userId)
+          && docId == 'info'
+          && isValidUserPrivateInfo(incoming(), userId)
+          && incoming().uid == existing().uid
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'updatedAt'])
+          && (isOwner(userId) || isAdmin())
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow delete: if isAdmin() && isValidId(userId) && docId == 'info';
+      }
+
+      // /users/{userId}/dayProgress/{dayId} — 15-Day Practice Records
+      match /dayProgress/{dayId} {
+        allow get: if isValidId(userId) && isValidDayId(dayId) && (isOwner(userId) || isAdmin());
+        allow list: if isSignedInNonAnon() && (
+          (request.auth.uid == userId && resource.data.userId == request.auth.uid) ||
+          isAdminEmail()
+        );
+
+        allow create: if isValidId(userId)
+          && isValidDayId(dayId)
+          && isValidDayProgress(incoming(), userId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && (isOwner(userId) || isAdmin())
+          && exists(/databases/$(database)/documents/users/$(userId));
+
+        allow update: if isValidId(userId)
+          && isValidDayId(dayId)
+          && isValidDayProgress(incoming(), userId)
+          && incoming().userId == existing().userId
+          && incoming().dayNumber == existing().dayNumber
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            // Action: Unlock module
+            (
+              !existing().unlocked && incoming().unlocked
+              && incoming().diff(existing()).affectedKeys().hasOnly(['unlocked', 'unlockedAt', 'updatedAt'])
+            ) ||
+            // Action: Practice auto-save (answers, flags, timer) while not yet submitted
+            (
+              !existing().submitted && !incoming().submitted
+              && incoming().diff(existing()).affectedKeys().hasOnly(['answers', 'markedForReview', 'timeSpentSeconds', 'updatedAt'])
+            ) ||
+            // Action: Submit assessment
+            (
+              !existing().submitted && incoming().submitted
+              && incoming().diff(existing()).affectedKeys().hasOnly(['answers', 'markedForReview', 'timeSpentSeconds', 'submitted', 'submittedAt', 'score', 'totalQuestions', 'updatedAt'])
+            ) ||
+            // Action: Retake / Reset assessment (preserves unlocked status)
+            (
+              existing().submitted && !incoming().submitted
+              && incoming().unlocked == existing().unlocked
+              && incoming().score == 0
+              && incoming().timeSpentSeconds == 0
+              && incoming().diff(existing()).affectedKeys().hasOnly(['answers', 'markedForReview', 'submitted', 'submittedAt', 'timeSpentSeconds', 'score', 'totalQuestions', 'updatedAt'])
+            ) ||
+            // Admin override
+            isAdmin()
+          )
+          && (isOwner(userId) || isAdmin())
+          && exists(/databases/$(database)/documents/users/$(userId));
+
+        allow delete: if isAdmin() && isValidId(userId) && isValidDayId(dayId);
+      }
+
+      // /users/{userId}/notes/{noteId} — Personal/Trainer Scratchpad
+      match /notes/{noteId} {
+        allow get: if isValidId(userId) && noteId == 'scratchpad' && (isOwner(userId) || isAdmin());
+        allow list: if false;
+        allow create: if isValidId(userId)
+          && noteId == 'scratchpad'
+          && isValidScratchpad(incoming(), userId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && (isOwner(userId) || isAdmin())
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow update: if isValidId(userId)
+          && noteId == 'scratchpad'
+          && isValidScratchpad(incoming(), userId)
+          && incoming().userId == existing().userId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['content', 'updatedAt'])
+          && (isOwner(userId) || isAdmin())
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow delete: if isAdmin() && isValidId(userId) && noteId == 'scratchpad';
+      }
+    }
+  }
+}

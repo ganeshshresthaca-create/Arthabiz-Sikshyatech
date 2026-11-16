@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Arthabiz</string>
+    <string name="title_activity_main">Arthabiz</string>
+    <string name="package_name">com.sikshyatech.arthabiz</string>
+    <string name="custom_url_scheme">com.sikshyatech.arthabiz</string>
+</resources>

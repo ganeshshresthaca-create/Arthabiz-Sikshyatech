@@ -1,0 +1,230 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Public-safe user profile for students and trainers practicing on Arthabiz.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Authentication user UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name of the student or trainer",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "role": {
+          "type": "string",
+          "description": "Account role",
+          "enum": ["student", "trainer"]
+        },
+        "institution": {
+          "type": "string",
+          "description": "Institution or hub name",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last-updated timestamp"
+        }
+      },
+      "required": ["uid", "name", "role", "institution", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "User Private Info",
+      "description": "Isolated PII record for a registered user.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Authentication user UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "description": "Verified user email address",
+          "minLength": 3,
+          "maxLength": 160
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last-updated timestamp"
+        }
+      },
+      "required": ["uid", "email", "updatedAt"]
+    },
+    "DayProgressRecord": {
+      "title": "Day Progress Record",
+      "description": "Stores a student or trainer's unlock status, MCQ answers, review flags, time spent, and score for one of the 15 curriculum days.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "dayNumber": {
+          "type": "integer",
+          "description": "Curriculum day number from 1 to 15"
+        },
+        "unlocked": {
+          "type": "boolean",
+          "description": "Whether the day module has been unlocked"
+        },
+        "unlockedAt": {
+          "type": "string",
+          "description": "ISO timestamp when unlocked",
+          "maxLength": 64
+        },
+        "answers": {
+          "type": "object",
+          "description": "Map of questionId to selected option index (0-3)"
+        },
+        "markedForReview": {
+          "type": "array",
+          "description": "List of question IDs flagged for review"
+        },
+        "submitted": {
+          "type": "boolean",
+          "description": "Whether the day assessment has been submitted"
+        },
+        "submittedAt": {
+          "type": "string",
+          "description": "ISO timestamp when submitted",
+          "maxLength": 64
+        },
+        "timeSpentSeconds": {
+          "type": "integer",
+          "description": "Cumulative practice duration in seconds"
+        },
+        "score": {
+          "type": "integer",
+          "description": "Number of correct answers"
+        },
+        "totalQuestions": {
+          "type": "integer",
+          "description": "Total questions in module"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last-updated timestamp"
+        }
+      },
+      "required": [
+        "userId",
+        "dayNumber",
+        "unlocked",
+        "answers",
+        "markedForReview",
+        "submitted",
+        "timeSpentSeconds",
+        "score",
+        "totalQuestions",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserScratchpad": {
+      "title": "User Scratchpad",
+      "description": "Personal study or faculty notes synchronized to the cloud.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "content": {
+          "type": "string",
+          "description": "Scratchpad note text",
+          "maxLength": 10000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last-updated timestamp"
+        }
+      },
+      "required": ["userId", "content", "createdAt", "updatedAt"]
+    },
+    "AdminRole": {
+      "title": "Admin Role",
+      "description": "Authoritative record granting trainer/admin privileges to a UID.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Admin UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "grantedBy": {
+          "type": "string",
+          "description": "Admin UID that granted access",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        }
+      },
+      "required": ["uid", "grantedBy", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile document keyed by Firebase Auth UID"
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Isolated PII subcollection for user email"
+    },
+    "/users/{userId}/dayProgress/{dayId}": {
+      "schema": { "$ref": "#/entities/DayProgressRecord" },
+      "description": "Per-day MCQ progress and assessment records (day_1 to day_15)"
+    },
+    "/users/{userId}/notes/{noteId}": {
+      "schema": { "$ref": "#/entities/UserScratchpad" },
+      "description": "Personal study and faculty notes"
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminRole" },
+      "description": "Trusted admin/trainer role directory"
+    }
+  }
+}
